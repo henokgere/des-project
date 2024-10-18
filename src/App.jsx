@@ -32,10 +32,41 @@ const applyETable = (block32) => {
   return applyPermutation(block32, eTable);
 };
 
+// Permutation Choice 1 (PC-1)
+const pc1 = [
+  57, 49, 41, 33, 25, 17, 9,
+  1, 58, 50, 42, 34, 26, 18,
+  10, 2, 59, 51, 43, 35, 27,
+  19, 11, 3, 60, 52, 44, 36,
+  63, 55, 47, 39, 31, 23, 15,
+  7, 62, 54, 46, 38, 30, 22,
+  14, 6, 61, 53, 45, 37, 29,
+  21, 13, 5, 28, 20, 12, 4
+];
+
+// Permutation Choice 2 (PC-2)
+const pc2 = [
+  14, 17, 11, 24, 1, 5,
+  3, 28, 15, 6, 21, 10,
+  23, 19, 12, 4, 26, 8,
+  16, 7, 27, 20, 13, 2,
+  41, 52, 31, 37, 47, 55,
+  30, 40, 51, 45, 33, 48,
+  44, 49, 39, 56, 34, 53,
+  46, 42, 50, 36, 29, 32
+];
+
+// Shifts per round
+const shiftsPerRound = [1, 1, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 1];
+
+
 const App = () => {
   const [mode, setMode] = useState('encrypt');
   const [text, setText] = useState('');
   const [key, setKey] = useState('');
+  const [pc1Key, setPc1Key] = useState('');
+  const [subkeys, setSubkeys] = useState([]);
+  const [xoredBlock, setXoredBlock] = useState(''); // Store XOR result
   const [result, setResult] = useState('');
   const [blocks, setBlocks] = useState([]); // Store 64-bit blocks
   const [permutedBlocks, setPermutedBlocks] = useState([]); // Store permuted blocks
@@ -47,6 +78,71 @@ const App = () => {
     return text.split('').map(char => {
       return char.charCodeAt(0).toString(2).padStart(8, '0');
     }).join('');
+  };
+
+  // Function to omit every 8th bit from 64-bit binary key and reduce to 56-bit key
+  const omit8thBits = (binaryKey) => {
+    let result = '';
+    for (let i = 0; i < binaryKey.length; i++) {
+      if ((i + 1) % 8 !== 0) { // Skip every 8th bit
+        result += binaryKey[i];
+      }
+    }
+    return result;
+  };
+
+  // Function to apply circular left shifts
+  const leftShift = (keyHalf, shifts) => {
+    return keyHalf.slice(shifts) + keyHalf.slice(0, shifts);
+  };
+
+  // Function to split a binary string into two equal halves
+  const splitIntoHalves = (binaryString) => {
+    const halfLength = binaryString.length / 2;
+    return [binaryString.slice(0, halfLength), binaryString.slice(halfLength)];
+  };
+
+  // Function to generate the 16 subkeys using PC-1, PC-2 and left shifts
+  const generateSubkeys = (binaryKey56) => {
+    const [left, right] = splitIntoHalves(binaryKey56);
+    let subkeys = [];
+
+    let currentLeft = left;
+    let currentRight = right;
+
+    for (let round = 0; round < 16; round++) {
+      // Perform left shifts for this round
+      currentLeft = leftShift(currentLeft, shiftsPerRound[round]);
+      currentRight = leftShift(currentRight, shiftsPerRound[round]);
+
+      // Combine left and right halves
+      const combinedKey = currentLeft + currentRight;
+
+      // Apply PC-2 to get the subkey for this round
+      const subkey = applyPermutation(combinedKey, pc2);
+      subkeys.push(subkey);
+    }
+
+    return subkeys;
+  };
+
+  // Handle key processing and subkey generation
+  const handleKeyProcessing = () => {
+    // Convert key to binary and omit every 8th bit
+    const binaryKey = toBinary(key).padEnd(64, '0').slice(0, 64);
+    const binaryKey56 = omit8thBits(binaryKey);
+    console.log("56-bit Key:", binaryKey56);
+
+    // Apply PC-1
+    const permutedKey56 = applyPermutation(binaryKey56, pc1);
+    setPc1Key(permutedKey56);
+    console.log("After PC-1:", permutedKey56);
+
+    // Generate subkeys for 16 rounds using shifts and PC-2
+    const generatedSubkeys = generateSubkeys(permutedKey56);
+    setSubkeys(generatedSubkeys);
+
+    return generatedSubkeys
   };
 
   // Function to break text into 64-bit blocks
@@ -70,11 +166,28 @@ const App = () => {
     return blocks;
   };
 
+
+  // XOR function
+  const xor = (block48, key48) => {
+    let xoredBlockResult = []
+    block48.map(block=>{
+      let xoredResult = '';
+      for (let i = 0; i < block.length; i++) {
+        xoredResult += (block[i] === key48[i] ? '0' : '1');
+      }
+      xoredBlockResult.push(xoredResult)
+    })
+    setXoredBlock(xoredBlockResult)
+    return xoredBlockResult;
+  };
+  
   // Function to handle text input and perform E-table expansion
   const handleExpansion = (binaryBlocks) => {
     // Apply E-table expansion to each 32-bit block
     const expanded = binaryBlocks.map(block => applyETable(block));
     setExpandedBlocks(expanded);
+
+    return expanded
   };
 
   // Function to encrypt or decrypt based on the mode
@@ -83,6 +196,9 @@ const App = () => {
       alert('Please enter both text and key.');
       return;
     }
+
+    //GENERATE KEY
+    const generatedSubkeys = handleKeyProcessing()
 
     const operationKey = parseInt(key);
     const modifiedText = text
@@ -110,7 +226,11 @@ const App = () => {
     setPermutedBlocks(permuted);
 
     //expand via e table
-    handleExpansion(binaryBlocks)
+    const expandedBlock48 = handleExpansion(binaryBlocks)
+
+    const xored = xor(expandedBlock48, generatedSubkeys[0]);
+    setXoredBlock(xored); // Store XOR result
+    console.log("XOR with Subkey:", xored);
 
     // Apply final permutation to each block
     const finalPermuted = binaryBlocks.map(block => applyPermutation(block, finalPermutation));
@@ -192,6 +312,30 @@ const App = () => {
             ))}
           </div>
         )}
+        {pc1Key && (
+          <div style={{ marginTop: '20px' }}>
+            <h3>After PC-1 (56-bit key):</h3>
+            <p>{pc1Key}</p>
+          </div>
+        )}
+
+        {subkeys.length > 0 && (
+          <div style={{ marginTop: '20px' }}>
+            <h3>Subkeys for 16 rounds (after PC-2):</h3>
+            {subkeys.map((subkey, index) => (
+              <p key={index}>Round {index + 1}: {subkey}</p>
+            ))}
+          </div>
+        )}
+        {xoredBlock.length > 0 && (
+          <div style={{ marginTop: '20px' }}>
+            <h3>XOR Result:</h3>
+            {xoredBlock.map((subkey, index) => (
+              <p key={index}>XOR {index + 1}: {subkey}</p>
+            ))}
+          </div>
+        )}
+
         {finalPermutedBlocks.length > 0 && (
           <div style={{ marginTop: '20px' }}>
             <h3>Final Permuted Blocks:</h3>
