@@ -20,6 +20,18 @@ const applyPermutation = (block, permutationTable) => {
   return permutationTable.map(index => block[index - 1]).join('');
 };
 
+// E-table (Expansion table) for 32-bit to 48-bit expansion
+const eTable = [
+  32, 1, 2, 3, 4, 5, 4, 5, 6, 7, 8, 9, 8, 9, 10, 11,
+  12, 13, 12, 13, 14, 15, 16, 17, 16, 17, 18, 19, 20, 21, 20, 21,
+  22, 23, 24, 25, 24, 25, 26, 27, 28, 29, 28, 29, 30, 31, 32, 1
+]; 
+
+// Function to apply E-table to a 32-bit block to expand it to 48 bits
+const applyETable = (block32) => {
+  return applyPermutation(block32, eTable);
+};
+
 const App = () => {
   const [mode, setMode] = useState('encrypt');
   const [text, setText] = useState('');
@@ -27,6 +39,7 @@ const App = () => {
   const [result, setResult] = useState('');
   const [blocks, setBlocks] = useState([]); // Store 64-bit blocks
   const [permutedBlocks, setPermutedBlocks] = useState([]); // Store permuted blocks
+  const [expandedBlocks, setExpandedBlocks] = useState([]); // Store 48-bit blocks after E-table expansion
   const [finalPermutedBlocks, setFinalPermutedBlocks] = useState([]); // Store final permuted blocks
 
   // Helper function to convert string to binary
@@ -55,6 +68,13 @@ const App = () => {
     }
 
     return blocks;
+  };
+
+  // Function to handle text input and perform E-table expansion
+  const handleExpansion = (binaryBlocks) => {
+    // Apply E-table expansion to each 32-bit block
+    const expanded = binaryBlocks.map(block => applyETable(block));
+    setExpandedBlocks(expanded);
   };
 
   // Function to encrypt or decrypt based on the mode
@@ -88,6 +108,10 @@ const App = () => {
     // Apply initial permutation to each block
     const permuted = binaryBlocks.map(block => applyPermutation(block, initialPermutation));
     setPermutedBlocks(permuted);
+
+    //expand via e table
+    handleExpansion(binaryBlocks)
+
     // Apply final permutation to each block
     const finalPermuted = binaryBlocks.map(block => applyPermutation(block, finalPermutation));
     setFinalPermutedBlocks(finalPermuted);
@@ -157,6 +181,14 @@ const App = () => {
             <h3>Permuted Blocks:</h3>
             {permutedBlocks.map((block, index) => (
               <p key={index}>Permuted Block {index + 1}: {block}</p>
+            ))}
+          </div>
+        )}
+        {expandedBlocks.length > 0 && (
+          <div style={{ marginTop: '20px' }}>
+            <h3>48-bit Expanded Blocks (E-table):</h3>
+            {expandedBlocks.map((block, index) => (
+              <p key={index}>Expanded Block {index + 1}: {block}</p>
             ))}
           </div>
         )}
