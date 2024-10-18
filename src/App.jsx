@@ -27,6 +27,7 @@ const App = () => {
   const [result, setResult] = useState('');
   const [blocks, setBlocks] = useState([]); // Store 64-bit blocks
   const [permutedBlocks, setPermutedBlocks] = useState([]); // Store permuted blocks
+  const [finalPermutedBlocks, setFinalPermutedBlocks] = useState([]); // Store final permuted blocks
 
   // Helper function to convert string to binary
   const toBinary = (text) => {
@@ -87,6 +88,9 @@ const App = () => {
     // Apply initial permutation to each block
     const permuted = binaryBlocks.map(block => applyPermutation(block, initialPermutation));
     setPermutedBlocks(permuted);
+    // Apply final permutation to each block
+    const finalPermuted = binaryBlocks.map(block => applyPermutation(block, finalPermutation));
+    setFinalPermutedBlocks(finalPermuted);
   };
 
   return (
@@ -152,6 +156,14 @@ const App = () => {
           <div style={{ marginTop: '20px' }}>
             <h3>Permuted Blocks:</h3>
             {permutedBlocks.map((block, index) => (
+              <p key={index}>Permuted Block {index + 1}: {block}</p>
+            ))}
+          </div>
+        )}
+        {finalPermutedBlocks.length > 0 && (
+          <div style={{ marginTop: '20px' }}>
+            <h3>Final Permuted Blocks:</h3>
+            {finalPermutedBlocks.map((block, index) => (
               <p key={index}>Permuted Block {index + 1}: {block}</p>
             ))}
           </div>
